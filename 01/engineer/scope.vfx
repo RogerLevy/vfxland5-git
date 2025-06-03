@@ -1,0 +1,47 @@
+\ ------------------------------------------------------------------------------
+\ Scope
+\ ------------------------------------------------------------------------------
+
+\ Public/private
+create wl$ 32 allot
+: wlname s" `" wl$ place  wl$  CurrSourceName -path -ext $+  count ;
+: CurrWordlist wl$ count search-context if >body @ else 0 then ;
+: scope ( - )
+    only forth definitions
+    s" vocabulary " >pad wl$ count $+ count evaluate
+    does> only forth definitions also @ context ! ;
+: ?wordlist ( a n - wl )
+    wl$ place
+    CurrWordlist ?dup if exit then
+    scope CurrWordlist ;
+: $private ( a n - )
+    only forth ?wordlist +order definitions ;
+: private ( - )
+    wlname $private ;
+: public ( - )
+    only forth definitions wlname ?wordlist +order ;
+: -- private 0 parse evaluate public ; immediate  
+: share ( - <scope> <word> )
+    ' >body @ +order
+    bl parse 2dup 
+    s" synonym " >pad -rot $+ s"  " $+ -rot $+ count evaluate
+    previous ;
+
+
+\ Extend include words to preserve the search order
+-- 0 value xt
+: preserve-order
+    to xt
+    get-order get-current xt depth >r execute
+    r> depth <> abort" Stack depth changed in included file!"
+    set-current set-order ;
+: include ['] include preserve-order ;
+-- 0 value a 0 value c
+: (included) a c included ;
+: included to c to a ['] (included) preserve-order ;
+: require ['] require preserve-order ;
+: (required) a c required ;
+: required to c to a ['] (required) preserve-order ;
+: ?included  2dup fileexist? if included else 2drop then ;
+
+previous

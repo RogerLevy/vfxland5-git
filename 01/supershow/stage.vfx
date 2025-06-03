@@ -1,0 +1,151 @@
+\ Stage
+variable gamelife
+1024 ?constant #actors
+#actors 8 * ?constant #temps
+256 ?constant #elements
+512 ?constant /actor
+create actors
+    #actors /actor * allot&erase
+    here  #temps /actor * allot&erase  constant temps
+    here  #elements /actor * allot&erase  constant elements
+actors [[
+var x var y
+var vx var vy
+var bmp
+var x1 var y1 var w1 var h1 \ hitbox 1 (objects)
+var beha
+var time  \ ms
+var n1 var n2 
+var phys
+var prio  \ 0 = behind BG, <>0 = in front of BG
+: as> ( a - <code> ; ) [[ r> execute ]] ; DoNotSin
+: actor ( n - a ) #actors 1 - and /actor * actors + ;
+: free? ( a - f ) 's cla @ 0= ;
+: actor# ( a - n ) actors - /actor / 1023 and ;
+: act> ( - ) ( - ) 0 time !  r> beha ! ; DoNotSin
+: act&> ( - ) ( - ) 0 time !  r@ execute  r> beha ! ; DoNotSin
+: all> ( - ) ( - )
+    r> #actors for
+        i swap >r actor [[ r@ execute ]] r>
+    loop drop ; DoNotSin
+: actives> ( - ) ( - )
+    r> #actors for
+        i swap >r actor [[ me free? not if r@ execute then ]] r>
+    loop drop ; DoNotSin
+-- : (think) actives> beha @ oexec ;
+-- : (move) actives> phys @ oexec ;
+-- : (+time) actives> msdelta time +! ;
+: step ( - ) (+time) (think) (move) ;
+
+\ Find actor
+actors #actors /actor #actors slice actor-array
+-- 0 value xt
+: (find) [[ me free? ?dup ?exit xt execute if me swap else -1 then ]] ;
+: who> ( - ) ( - )
+    0 r> to xt ['] (find) actor-array each ; DoNotSin
+
+\ Actor Serialization
+m: peeked ( - ) ;
+: peek ( actor - )
+    as> me actor# . cla @ .name space x 2p?  me peeked ;
+: !" ( - <var>" )
+    '"' parse 2dup 2>r
+    f" %s ?" evaluate
+    2r> fe" .\" %s ! \"" evaluate ; immediate
+: p!" ( - <var>" )
+    '"' parse 2dup 2>r
+    f" %s p?" evaluate 
+    2r> fe" %p .\" %s ! \"" evaluate ; immediate
+
+\ Actor error throwing
+-- : supershow-othrow ( n - )
+    dup 0 = if drop exit then
+    dup -1 = if throw then
+    cr me ['] peek catch drop
+    \ depth 0< if -1 abort" Stack underflow!" then
+    throw ;
+' supershow-othrow is othrow
+
+\ Actor drawing
+: middle ( - x y ) bmp @ bmpwh 2 2 2/ ;
+: sprite ( - ) x 2@ 2p>s middle 2- at bmp @ put ;
+: backsprites ( - ) hold> actives> prio @ ?exit sprite ;
+: sprites ( - ) hold> actives> prio @ -exit sprite ;
+
+\ Actor management
+-- variable next#
+-- : alloc-actor ( - a )
+    #actors for
+        next# @ 
+        actor dup free? if unloop exit then  drop
+        1 next# +!
+    loop  -1 abort" Out of actors" ;
+-- : (float) ( - ) vx 2@ x 2+! ;
+create default /actor allot&erase
+default [[
+    object cla !
+    prio on
+    -5 -5 x1 2!  10 10 w1 2!
+    ' (float) phys !
+]]
+: float  ['] (float) phys ! ;
+: priority ( n - ) 0 #actors 1 - clamp next# ! ;
+: unload ( - ) 0 cla !  0 bmp !  0 beha !  0 phys ! ;
+: clear ( - ) 0 next# !  actives>  unload ;
+: 1actor  default me /actor move  pen 2@ 2s>p x 2! ;
+: *actor ( - a ) alloc-actor [[ 1actor me ]] ;
+: one ( class - ) *actor [[ cla ! me init me ]] ;
+create dummy /actor allot&erase  dummy [[ object cla ! ]] 
+
+\ Object collisions
+: hitbox1 ( - x1 y1 x2 y2 )
+    x 2@ 2p>s x1 2@ 2+  w1 2@ 2over 2+  1 1 2- ;
+: hit? ( obj obj - f )
+    >r [[ hitbox1 ]] r> [[ hitbox1 ]] overlap? ;
+
+\ Scripting tools
+: att ( col row - ) gap dup 2*  gap 2 / dup 2+  at ;
+: *[[ ( class - <code>]] )
+    s" *actor [[ cla !" evaluate
+    ']' parse evaluate  1 >in +! 
+    s" me init ]]" evaluate ; immediate
+: in? ( - f ) x 2@ 2p>s 0 239 within >r 0 319 within r> and ;
+: ?out ( - f ) in? not dup if unload exit then ;
+: passed? ( n - f ) time @ <= dup if 0 time ! then ;
+: from ( actor x y - ) rot as> x 2@ 2p>s 2+ at  me actor# priority ;
+: halt  beha off  0 0 vx 2! ;
+: morph ( class - )
+    >r x 2@ vx 2@
+    default me /actor move
+    vx 2! x 2! cla !  init ;
+: is? ( a class - f ) swap 's cla @ = ;
+: out ( a - ) ?dup -exit [[ unload ]] ;
+: vanish  y @ 16384. or y ! ;
+: appear  y @ 16384. invert and y ! ;
+: copy ( a1 a2 - a2 ) dup >r /actor move r> ;
+: expanded ( a1 n - a2 )
+    swap dummy copy as>
+        dup negate dup x1 2+! 2 * dup w1 2+!
+        me ;
+: hb1! ( x y w h - ) w1 2! x1 2! ;
+
+\ Timer actors
+-- synonym xt1 n2
+c" timer" create-class 
+: clear-timers actives> me timer is? -exit unload ;
+-- : (timer) xt1 ! n1 ! act> n1 @ passed? -exit unload xt1 @ execute ;
+: timer> ( n - ) ( - ) r> timer one [[ (timer) ]] ;
+
+\ Secondary actor storage
+-- variable tnext#
+: temp ( n - a ) /actor * temps + ;
+: *temp ( - a )
+    #temps for
+        tnext# @  
+        temp dup free? if unloop exit then  drop
+        tnext# @ 1 + #temps mod tnext# !
+    loop  -1 abort" Out of temps" ;
+: temps> ( - ) ( - )
+    r> #temps for i swap >r temp [[ r@ execute ]] r> loop drop ;
+: clear-temps ( - )
+    temps> unload ;

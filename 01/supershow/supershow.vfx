@@ -1,0 +1,177 @@
+\ ------------------------------------------------------------------------------
+\ Supershow
+\
+\ minimal engine with actors, VGA colors, CRT effect,
+\ sample playback, and tilemaps.
+\ ------------------------------------------------------------------------------
+
+20 ?constant gap  
+320 gap / ?constant tmw
+240 gap / ?constant tmh
+
+\ Array
+require ..\supershow\array.vfx
+
+\ Shaders
+require ..\supershow\shader.vfx
+
+\ CRT shader
+require ..\supershow\crt.vfx
+
+\ Audio engine
+require ..\supershow\waveplay.vfx
+
+\ Utilities
+: 4s>p  2s>p 2>r 2s>p 2r> ;
+: 2?  2@ swap . . ;
+: p*!  dup @ rot p* swap ! ;
+: w?  w@ . ;
+: c?  c@ . ;
+: h.  hex . decimal ;
+: umod  ( n n - n ) 0 swap mu/mod 2drop ;
+: at@  pen 2@ ;
+: toggle dup @ 0= swap ! ;
+: cput ( bmp - ) dup dup bmpwh -2 -2 2/ +at put bmpwh 2 2 2/ +at ;
+: hold  al_hold_bitmap_drawing ;
+: hold>  1 hold r> catch 0 hold throw ;
+: h|  $1000000 or ;
+: v|  $2000000 or ;
+: hv|  h| v| ;
+: named? ( xt $ - f ) >r >name count r> count 2dup upper compare 0= ; 
+
+\ Trigonometry
+: fscale ( f: x y s - f: x y ) fswap fover f* frot frot f* fswap ;
+: uvec ( deg. - x. y. ) p>f deg>rad fdup fcos f>p fsin f>p ;  
+: fuvec ( f: deg - f: x f: y ) deg>rad fdup fcos fswap fsin ;  
+: vec ( deg. len - x y ) p>f p>f fuvec frot fscale f>p f>p swap ;
+: ang ( x. y. - deg. ) p>f p>f fatan2 rad>deg 360e f+ 360e fmod f>p ;
+: hypot ( x. y. - n. ) p>f fdup f* p>f fdup f* f+ fsqrt f>p ;
+: dist ( x. y. x. y. - n. ) 2- hypot ;   
+
+\ Filesystem
+: include, ( path n - )
+    r/o open-file abort" include, error! (file not found?)"
+    include-file ;
+: write ( a n path n - )
+    2dup fileexists? if 2dup delete-file throw then
+    w/o create-file throw >r
+    r@ write-file throw
+    r> close-file drop ;
+: read ( a n path n - )
+    2dup fileexists? not if 2drop 2drop exit then
+    r/o open-file throw >r
+    ( a n ) r@ read-file throw drop 
+    r> close-file drop ;
+
+\ Dictionaries (key/value structures)
+-- 0 value xt
+-- : (walk) -1 swap dup name> >body xt execute ; 
+: lookup ( $ wl - a )
+    locals| wl $ | get-order get-current
+    only  wl +order definitions $ find if
+        >body >r
+    else
+        $create here 0 , >r
+    then
+    set-current set-order r> ;   
+: dictionary ( - <name> ) ( - wl )
+    create wordlist drop ;
+: walk> ( dict - ) ( -1 $ a - f )
+    r>  xt >r  to xt
+    ['] (walk) swap traverse-wordlist
+    r> to xt ;
+: dict. ( dict - )
+    walk> cr swap count type ."  = " ? ;
+
+\ Streaming audio
+: bgm ( - <name> <filename> ) ( - )
+    create bl parse $, does> count streamL ;
+: audioclip ( - <name> <filename> ) ( - )
+    create bl parse $, does> count stream ;
+
+\ Blank the screen
+: blank show @ ['] noop show ! 10 for frame loop show ! ;
+
+\ Stage
+include ..\supershow\stage.vfx
+
+\ Tilemap
+include ..\supershow\tilemap.vfx
+include ..\supershow\udlr.vfx
+include ..\supershow\tmcol.vfx
+include ..\supershow\tread.vfx
+
+\ Sprite animation
+var anm var a.ts var a.spd var a.len
+var a.ofs var a.done var a.flp
+-- variable aspd \ pointer to len in animation header
+-- : >frames ( anim - a ) cell+ cell+ ;
+-- : ?baseid  a.ts @ dup if baseid@ then ;
+-- : !bmp  a.ofs @ p>s cells anm @ >frames + @ ?baseid + a.flp @ xor bmp ! ;
+-- : ?done  a.ofs @ a.spd @ + a.len @ s>p >= -exit  a.done on ;
+: cycle ( anim spd. - ) \ to stop, say `anm off`
+    a.spd !  dup anm !  @+ a.ts ! @ a.len !  0 a.ofs !  a.done off  !bmp ;
+: animation ( ts - <name> )  \ 1st , len , ofs , ofs , ofs , ... ofs ,
+    create , here aspd ! 0 , ;
+: frame, ( n - )
+    , 1 aspd @ +! ;
+: range, ( n n - )
+    2dup < if 1 + swap do i frame, loop
+    else swap do i frame, -1 +loop then ;
+: +animation ( - )
+    anm @ -exit
+    a.spd @ a.ofs @ + a.len @ s>p mod a.ofs !
+    !bmp ?done ;
+: animate ( - )
+    actives> +animation ;
+
+\ Create classes from bitmaps automatically
+: load-autoclass ( a n - )
+    -path | n a |
+    a n -ext >pad find nip ?exit
+    cr ." Creating auto-class from bitmap " a n type
+    a n -ext >pad create-class  \ note: CREATE-CLASS doesn't create a scope
+    s[ a n -ext type ."  :: init " a n type ."  bmp ! ;" s] evaluate ;
+: load-autoclasses
+    get-order get-current
+        s" gfx" >datadir `` ['] load-autoclass ` each-file
+    set-current set-order ;
+
+\ Load scripts
+: load-script ( a n - )
+    -path s[ ." scripts\" type s] required ;
+: load-scripts ( - )
+    load-autoclasses 
+    s" scripts" ['] load-script each-file ;
+
+\ Interactive tools  
+-- 0 value c
+-- : preparse >in @ swap parse rot >in ! ;
+: update ( - <class> )
+    bl preparse f" scripts\%s.vfx" included
+    bl word find not if drop exit then
+    >body to c
+    actives> me c is? if me init then ;
+: .actors  actives> cr me peek ;
+: .temps  temps> me free? ?exit cr me peek ;
+: freemove ( actor - )
+    as> halt float act>
+        <left> held? if -2. x +! then
+        <right> held? if 2. x +! then
+        <up> held? if -2. y +! then
+        <down> held? if 2. y +! then ;
+
+\ Automatically refresh bitmaps and tilesets
+: supershow-onSwitchIn
+    debug @ -exit
+    cr ." Reloading graphics..."
+    reload-bitmaps
+    reload-tilesets ;
+
+\ Initialization
+: init-supershow ( - )
+    init-tilesets
+    load-samples
+    init-crt
+    \ ['] supershow-onSwitchIn is onSwitchIn
+    debug @ not if display al_hide_mouse_cursor then ;

@@ -1,0 +1,45 @@
+\ ------------------------------------------------------------------------------
+\ spunk - Project loader
+\  Essentially an IDE definition?
+\ ------------------------------------------------------------------------------
+
+\ Some helpers
+-- : prj path '\' ending ;
+: turnkey
+    prj f" bin\%s.sav" delete-file drop
+    prj f" save-release bin\%s" evaluate
+    prj f" save-debug bin\%s-debug" evaluate
+;
+
+\ Load the game
+s" constants.vfx" ?included 
+include ..\supershow\supershow.vfx
+include ..\spunk\spunk.vfx
+s" common.vfx" ?included
+s" modules.vfx" ?included
+s" game.vfx" ?included
+load-scripts
+turnkey
+
+\ Load tools
+path cwd ..\spunk
+    \ Tile Editor
+    cwd te
+        include te.vfx
+    cwd ..
+    \ Level Editor
+    cwd le
+        include le.vfx
+    cwd ..
+    \ Bitmap Editor
+    cwd be
+        include be.vfx
+    cwd ..
+$cwd
+s" game" <f1> func
+s" te" <f2> func
+s" le" <f3> func
+s" be" <f4> func
+
+\ Testing harness
+s" testing.vfx" ?included

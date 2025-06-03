@@ -1,0 +1,73 @@
+\ ------------------------------------------------------------------------------
+\ Engineer OOP extension
+\ ------------------------------------------------------------------------------
+
+0 value me
+0 value /obj    \ next field offset
+0 value /static \ next static field offset
+: field ( ofs size - <name> n ) ( a - a )
+    create over , + $C0FFEE , does> @ + ;
+-- : ?already ( - )
+    >in @ bl word find if dup >body cell+ @ $C0FFEE = if
+    r> drop drop drop exit then then drop >in ! ; DoNotSin
+-- : ?literal
+    state @ if postpone literal then ;
+
+\ Addressing
+: [[ ( a - ) me osp @ !  4 osp c+!  to me ;
+: ]] ( - ) -4 osp c+!  osp @ @ to me ;
+: ofield ( size - <name> n ) ( - a )
+    /obj swap field to /obj 
+    does> @ me + ;
+: var ( - <name> ) ( - a )
+    ?already cell ofield ; DoNotSin 
+: 's ( a - <name> a )
+    ' >body @ ?literal s" +" evaluate ; immediate 
+
+\ Classes
+var cla
+: oexec ( ... xt - ... )
+    ?dup if catch othrow then ;
+-- : >static ( obj - class )
+    's cla @ ;
+-- : ?already
+    >in @ bl word find if r> 3drop exit then drop >in ! ; DoNotSin
+-- : preword
+    >in @ swap word swap >in ! ;
+-- : ?message
+    >in @  ' >body 3 cells + @ $11111111 <>
+    abort" Message not found!  (Did you forget an underscore?)"
+    >in ! ;
+-- create classname 33 allot
+-- : does-message
+    does> swap [[
+        dup @ me >static + @ ?dup if
+            nip
+        else
+            cell+ cell+ @
+        then oexec ]] ; DoNotSin
+: create-class
+    $create 1024 allot&erase ;
+: class ( - <name> )
+    only forth definitions
+    bl word count classname place
+    classname find not nip if
+        classname create-class
+    then
+    classname count f" `%s" $private
+    here 1024 allot&erase [[ classname count evaluate cla ! ; \ ]]
+: static ( - <name> ) ( - a )
+    /static  cell field  to /static  does> @ me >static + ;
+
+\ Messages
+\  declare a message and its default behavior
+: m: ( - <name> <code> ; ) ( ... obj - ... ) 
+    static does-message here 0 , $11111111 , :noname swap ! ;
+\  define the response of a given class to a given message 
+: :: ( class - <msg> <code> ; ) ( ... obj - ... ) 
+    ?message  postpone 's :noname swap ! ;
+
+\ Defaults
+c" object" create-class 
+m: init ( - ) ;
+m: destruct ( - ) ;

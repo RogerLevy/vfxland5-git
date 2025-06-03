@@ -1,0 +1,10 @@
+\ ------------------------------------------------------------------------------
+\ Pinky the Penguin Level Editor (Standalone)
+\ (Standalone ver. abandoned)
+\ ------------------------------------------------------------------------------
+
+include ..\game\utilities.vfx
+include ..\game\tileset.vfx 
+include ..\game\spunk.vfx
+
+include le.vfx

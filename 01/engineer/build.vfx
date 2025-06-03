@@ -1,0 +1,14 @@
+extern void * GetForegroundWindow( );
+GetForegroundWindow 0 -10 0  1920 2 / 20 +  520 $40 SetWindowPos drop
+
+optimising off
+\ DisableWin32Catch  \ ?
+\ Win32ExceptThrow  \ disables exception handling...
+include engineer.vfx
+\ 0 to GenINI? \ don't save/load VFX INI file
+\ 0 to InitSupport? \ don't need windows constants
+256 1024 * 1024 * set-size  \ of dictionary
+
+save-debug bin\engineer
+
+`engineer

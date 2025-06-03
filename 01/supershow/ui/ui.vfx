@@ -1,0 +1,113 @@
+\ ------------------------------------------------------------------------------
+\ User Interface Layer
+\ ------------------------------------------------------------------------------
+
+\ Object extension
+var sx var sy
+var en var vis var draw
+var parent var lowest var highest var next var prev
+require ..\supershow\dltree.vfx
+
+\ Allocation
+: element ( n - a )  /actor * elements + ;
+-- variable enext#
+-- : alloc-element ( - a )
+    #elements for
+        enext# @ element dup free? if unloop exit then  drop
+        1 enext# +!
+    loop  -1 abort" Out of elements" ;
+-- : 1element  cla !  at@ 2s>p x 2!  vis on  1. 1. sx 2!  en on ;
+: el ( class - actor )
+    me >r alloc-element [[
+        me r> dlpush
+        1element me init
+        me
+    ]] ;
+
+\ Definition
+: el: ( class - <name> a )
+    el dup constant ;
+: draw> ( - ) ( - )
+    r> draw ! ; DoNotSin
+
+\ Announce
+-- 0 value xt
+-- : (announce)
+    xt execute [ last-colon-xt @ ] literal me dleach ;
+: announce ( xt el - )
+    swap to xt ['] (announce) swap dleach ;
+: announce> ( el - <code> ; )
+    r> swap announce ;
+
+\ Update element time counters
+-- : (+time) ( - )
+    en @ -exit  msdelta time +! ;
+-- : time-children ( - )
+    ['] (+time) swap dleach ;
+
+\ Logic
+-- : (act) ( - )
+    en @ -exit
+    beha @ oexec
+    [ last-colon-xt @ ] literal me dleach ;
+-- : act-children ( - )
+    ['] (act) swap dleach ;
+
+\ Rendering
+-- : middle ( - x y )  bmp @ bmpwh 2 2 2/ ;
+-- : sprite ( - )  at@ middle 2negate +at bmp @ put at ;
+-- : +t  x 2@ 2p>s 2s>f `` sx 2@ 2p>f 0e ``` transform ;
+-- : (draw) ( - )
+    en @ -exit vis @ -exit
+    +m +t 0 0 at
+        draw @ if draw @ oexec else sprite then
+        [ last-colon-xt @ ] literal me dleach
+    -m  ;
+-- : draw-children ( - )
+    ['] (draw) swap dleach ;
+
+\ Animation
+\ -- : (cycle-recursive) 
+\   +animation [ last-colon-xt @ ] literal me dleach ;
+\ -- : cycle-children ( - )
+\   ['] (cycle-recursive) swap dleach ; is cycle-children
+
+\ Processing
+0 0 at alloc-element dup constant root [[ object 1element ]]
+: ui ( - )
+    0 0 winw winh al_set_clipping_rectangle
+    root act-children
+    root draw-children
+    root time-children
+\    root cycle-children
+    fullscreen? if clip-screen then ;
+
+\ Coordinates
+: p>local ( x. y. - x. y. )
+    parent @ ?dup if [[ recurse ]] then x 2@ 2- sx 2@ 2p/ ;
+: >local ( x y - x y )
+    2s>p p>local 2p>s ;
+
+\ Update
+-- 0 value c
+\ -- : (actives) actives> me c is? -exit me init ;
+-- : preparse >in @ swap parse rot >in ! ;
+: uupd ( - <class> )
+    bl preparse 1 - f" scripts\%s.vfx" included
+    bl word find not if drop exit then
+        >body to c
+    root announce> me c is? -exit me init ;
+
+\ Management
+-- : (gone) en off ;
+: isolate ( el - )
+    ['] (gone) over 's parent @ dleach  's en on ;
+    
+\ ------------------------------------------------------------------------------
+
+\ class test
+\ test :: init draw> s" Helo worl" print ;
+\ root [[
+\     0 0 at test el value e1
+\     50 50 at test el value e2
+\ ]]

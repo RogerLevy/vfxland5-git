@@ -1,0 +1,52 @@
+\ ------------------------------------------------------------------------------
+\ Arrays
+\ Configurable-width arrays with lots of functions.
+\ They can also be used as stacks.
+\ PUSH and POP can be used to push/pop a cell from/to the datastack.
+
+\ Todo:
+\   INSERT DELETE UNSHIFT SHIFT SORT
+\   PUSHDATA copies the source data into the stack.  
+\   POPDATA returns the address not the contents.
+
+\ Later I'm going to add deques and have both share an interface.
+\ ------------------------------------------------------------------------------
+: slice ( a max width count - <name> )
+    create , , , , ;
+: array[ ( width - width a )
+    here ;
+: ]array ( width a - <name> )
+    | a w | a here a - w / w over slice ;
+: pad-array  ( width a n - width a )
+    | n a w | a w n * + here - allot&erase w a ;
+: array ( max width - <name> )
+    | w m | here m w * allot&erase m w m slice ;
+: stack ( max width - <name> )
+    | w m | here m w * allot&erase m w 0 slice ;
+: max-items  @ ;
+: /item  cell+ @ ;
+: >cnt  cell+ cell+ ;
+: #items  >cnt @ ;
+: >items  cell+ cell+ cell+ @ ;
+: ?range
+    2dup max-items >= abort" Index out of range."
+    over 0< abort" Index out of range." ;
+: vacate ( array - )  0 swap >cnt ! ;
+: [] ( n array - a )  ?range dup >items swap /item rot * + ;
+: tos ( array - a )  dup #items 1 - swap [] ;
+: index ( a array - n )
+    | a |
+    a >items - a /item /  a ?range drop ;
+: each ( xt array - ) ( a - f )
+    | a xt |
+    a >items a #items a /item * bounds ?do
+        i xt execute 0= if unloop exit then
+    a /item +loop ;
+: push ( n array - )
+    | a |
+    a #items a max-items = abort" Overflow."
+    1 a >cnt +!  a tos ! ;
+: pop ( array - n )
+    | a |
+    a #items 0= abort" Underflow."
+    a tos @  -1 a >cnt +! ;

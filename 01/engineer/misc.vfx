@@ -1,0 +1,52 @@
+\ ------------------------------------------------------------------------------
+\ Misc
+\ ------------------------------------------------------------------------------
+
+: ` ; immediate
+: `` ; immediate
+: ``` ; immediate
+: ```` ; immediate
+synonym not 0=
+: >zpad  pad zplace pad ;
+: >pad  pad place pad ;
+: $+  ( $ a n - $ ) rot dup >r append r> ;
+: ?exit  s" if exit then" evaluate ; immediate
+: -exit  s" 0= if exit then" evaluate ; immediate 
+synonym | locals|
+synonym cd cwd
+: 2-  rot swap - >r - r> ;
+: for  s" 0 ?do" evaluate ; immediate
+: @+  dup cell+ swap @ ;
+: .name ( xt - ) >name count type ;
+: f>ds  0 >r rp@ sf! r> ;
+: :now  :noname  ';' parse evaluate  postpone ;  execute ;
+: link,   here  over @ ,  swap ! ;
+: do-chain  begin @ ?dup while dup cell+ @ execute repeat ;
+: .s cr depth | d | d 0 ?do d 1 - i - pick . loop ;
+: rs reset-stacks ;
+: ending ( a n c - a n )
+   >r begin  2dup r@ scan
+      ?dup while  2swap 2drop  #1 /string
+   repeat  r> 2drop ;
+: slashes  2dup  over + swap do  i c@ '/' = if
+    '\' i c!  then  #1 +loop ; 
+: -path ( a n - a n ) slashes  '\' ending  0 max ;
+: -ext  2dup '.' scan nip - ;
+: bytes-left  ( id - n )
+    >r r@ file-size abort" Get file size error" drop
+    r> file-position abort" Get file position error" drop
+    - ;
+: file, ( a n - )
+    r/o open-file drop | #1 |
+    here 
+    #1 bytes-left allot
+    #1 bytes-left #1 read-file 2drop
+    #1 close-file drop 0 , ;
+: preword ( - a ) >in @ bl parse rot >in ! >pad ;
+: ?constant ( n - <name> ) ( - n )
+    preword find nip if drop ' drop else constant then ;
+: ?fconstant ( n - <name> ) ( - n )
+    preword find nip if fdrop ' drop else fconstant then ;
+: allotted ( - n ) here last @ >body - ;
+: lpc ( n - n) dup 'A' >= over 'Z' <= and -exit $20 or ;
+: >lowercase ( a c - a c) 2dup bounds ?do i dup c@ lpc swap c! loop ;
